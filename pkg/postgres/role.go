@@ -62,21 +62,25 @@ func (c *pg) RevokeRole(role, revoked string) error {
 
 func (c *pg) DropRole(role, newOwner, database string, logger logr.Logger) error {
 	// REASSIGN OWNED BY only works if the correct database is selected
-	tmpDb := GetConnection(c.user, c.pass, c.host, database, c.args, logger)
-	_, err := tmpDb.Exec(fmt.Sprintf(REASIGN_OBJECTS, role, newOwner))
-	defer tmpDb.Close()
-	// Check if error exists and if different from "ROLE NOT FOUND" => 42704
-	if err != nil && err.(*pq.Error).Code != "42704" {
-		return err
-	}
+	tmpDb, err := GetConnection(c.user, c.pass, c.host, database, c.args, logger)
+	if err != nil {
+		logger.Info("failed to connect to PostgreSQL server with database %s: %s", database, err.Error())
+		logger.Info("maybe already remove, skip REASIGN_OBJECT")
+	} else {
+		_, err = tmpDb.Exec(fmt.Sprintf(REASIGN_OBJECTS, role, newOwner))
+		defer tmpDb.Close()
+		// Check if error exists and if different from "ROLE NOT FOUND" => 42704
+		if err != nil && err.(*pq.Error).Code != "42704" {
+			return err
+		}
 
-	// We previously assigned all objects to the operator's role so DROP OWNED BY will drop privileges of role
-	_, err = tmpDb.Exec(fmt.Sprintf(DROP_OWNED_BY, role))
-	// Check if error exists and if different from "ROLE NOT FOUND" => 42704
-	if err != nil && err.(*pq.Error).Code != "42704" {
-		return err
+		// We previously assigned all objects to the operator's role so DROP OWNED BY will drop privileges of role
+		_, err = tmpDb.Exec(fmt.Sprintf(DROP_OWNED_BY, role))
+		// Check if error exists and if different from "ROLE NOT FOUND" => 42704
+		if err != nil && err.(*pq.Error).Code != "42704" {
+			return err
+		}
 	}
-
 	_, err = c.db.Exec(fmt.Sprintf(DROP_ROLE, role))
 	// Check if error exists and if different from "ROLE NOT FOUND" => 42704
 	if err != nil && err.(*pq.Error).Code != "42704" {
