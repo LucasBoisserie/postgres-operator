@@ -177,6 +177,7 @@ func (r *ReconcilePostgres) Reconcile(request reconcile.Request) (_ reconcile.Re
 		instance.Status.Roles.Writer = writer
 		instance.Status.Succeeded = true
 	}
+
 	// create extensions
 	for _, extension := range instance.Spec.Extensions {
 		// Check if extension is already added. Skip if already is added.
